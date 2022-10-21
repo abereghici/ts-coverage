@@ -74,13 +74,17 @@ fn main() {
         process::exit(1);
     }
 
-    for (extension, number) in extensions_hash {
-        let bar_size = 60.0;
-        let percentage = (number as f32 * 100.0) / files_count as f32;
-        let percentage_bar = (number as f32 * bar_size) / files_count as f32;
-        print!(".{}(x)", extension);
-        print!(" | {:#<1$}", "", percentage_bar as usize);
-        print!("{:>1$} | ", "", (bar_size - percentage_bar) as usize);
-        println!("{} ({:.1}%)", number, percentage);
+    if extensions_hash.is_empty() {
+        println!("No js / ts files found in directory");
+    } else {
+        for (extension, number) in extensions_hash {
+            let bar_size = 60.0;
+            let percentage = (number as f32 * 100.0) / files_count as f32;
+            let percentage_bar = (number as f32 * bar_size) / files_count as f32;
+            print!(".{}(x)", extension);
+            print!(" | {:#<1$}", "", percentage_bar as usize);
+            print!("{:>1$} | ", "", (bar_size - percentage_bar) as usize);
+            println!("{} ({:.1}%)", number, percentage);
+        }
     }
 }
