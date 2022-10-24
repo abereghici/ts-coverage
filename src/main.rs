@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::cell::Cell;
 use std::ffi::OsStr;
 use std::fs::{self, DirEntry};
 use std::path::Path;
@@ -7,6 +7,7 @@ use std::{env, io, process};
 struct Extension<'a> {
     name: &'a str,
     variations: Vec<&'a str>,
+    files_count: Cell<i32>,
 }
 
 impl<'a> Extension<'a> {
@@ -14,7 +15,11 @@ impl<'a> Extension<'a> {
         if !variations.contains(&name) {
             variations.push(name.clone())
         }
-        Extension { name, variations }
+        Extension {
+            name,
+            variations,
+            files_count: Cell::new(0),
+        }
     }
 
     pub fn r#match(&self, extension: &str) -> bool {
@@ -45,26 +50,28 @@ fn main() {
         process::exit(1);
     }
 
-    let path = &args[1];
-    let mut extensions_hash: HashMap<&str, i32> = HashMap::new();
-    let mut files_count = 0;
+    let dir = Path::new(&args[1]);
+
+    if !dir.is_dir() {
+        eprintln!("The provided path is not a directory");
+        process::exit(1);
+    }
 
     let extensions = [
         Extension::new("js", vec!["jsx", "cjs", "mjs", "cjsx", "mjsx"]),
-        Extension::new("ts", vec!["ts", "tsx", "cts", "mts", "ctsx", "mtsx"]),
+        Extension::new("ts", vec!["tsx", "cts", "mts", "ctsx", "mtsx"]),
     ];
+    let mut total_files_count = 0;
 
-    let result = visit_dirs(&Path::new(path), &mut |file| {
+    let result = visit_dirs(&dir, &mut |file| {
         let path = file.path();
         let current_extension = path.extension().and_then(OsStr::to_str);
 
-        if let Some(current_extension) = current_extension {
-            for ext in &extensions {
-                if ext.r#match(current_extension) {
-                    *extensions_hash.entry(ext.name).or_insert(0) += 1;
-                    files_count += 1;
-                    break;
-                }
+        for ext in &extensions {
+            if ext.r#match(current_extension.unwrap_or_default()) {
+                ext.files_count.set(ext.files_count.get() + 1);
+                total_files_count += 1;
+                break;
             }
         }
     });
@@ -74,17 +81,20 @@ fn main() {
         process::exit(1);
     }
 
-    if extensions_hash.is_empty() {
-        println!("No js / ts files found in directory");
+    if total_files_count == 0 {
+        println!("No js / ts files found");
     } else {
-        for (extension, number) in extensions_hash {
+        println!("");
+        for extension in extensions {
+            let current_count = extension.files_count.get();
             let bar_size = 60.0;
-            let percentage = (number as f32 * 100.0) / files_count as f32;
-            let percentage_bar = (number as f32 * bar_size) / files_count as f32;
-            print!(".{}(x)", extension);
-            print!(" | {:#<1$}", "", percentage_bar as usize);
-            print!("{:>1$} | ", "", (bar_size - percentage_bar) as usize);
-            println!("{} ({:.1}%)", number, percentage);
+            let percentage = (current_count as f32 * 100.0) / total_files_count as f32;
+            let percentage_bar = (current_count as f32 * bar_size) / total_files_count as f32;
+
+            print!(".{}(x)", extension.name);
+            print!(" | {:▓<1$}", "", percentage_bar as usize);
+            print!("{:░>1$} | ", "", (bar_size - percentage_bar) as usize);
+            println!("{} ({:.1}%)\n", current_count, percentage);
         }
     }
 }
